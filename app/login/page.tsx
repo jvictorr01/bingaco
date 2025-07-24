@@ -53,8 +53,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#000732' }}>
       <Card className="w-full max-w-md">
+        <img
+          src="https://bingodopovo.com/assets/images/arte4.png"
+          alt="Banner do Bingo"
+          className="mx-auto mb-6 w-full h-auto rounded"
+          style={{ maxHeight: 220 }}
+        />
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Entrar</CardTitle>
           <CardDescription>Entre com sua conta para acessar o Bingo</CardDescription>
