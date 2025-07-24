@@ -96,14 +96,22 @@ export function calculateAccumulatedPrize(
   // Distribuir 70% do total arrecadado entre os prêmios
   const totalPrizePool = totalRevenue * 0.7;
   
-  // Distribuição dos prêmios
-  const distribution = {
-    quadra: 0.2, // 20% do pool
-    quina: 0.3,  // 30% do pool
-    cheia: 0.5   // 50% do pool
+  // Usar percentuais configurados no sorteio, se existirem
+  let quadraPercent = 20;
+  let quinaPercent = 30;
+  let cheiaPercent = 50;
+  if (draw.prizes && 'quadraPercent' in draw.prizes && 'quinaPercent' in draw.prizes && 'cheiaPercent' in draw.prizes) {
+    quadraPercent = draw.prizes.quadraPercent;
+    quinaPercent = draw.prizes.quinaPercent;
+    cheiaPercent = draw.prizes.cheiaPercent;
+  }
+  // Garantir que os percentuais somam 100 (opcional: pode lançar erro ou normalizar)
+  const percentMap = {
+    quadra: quadraPercent,
+    quina: quinaPercent,
+    cheia: cheiaPercent,
   };
-  
-  return totalPrizePool * distribution[type];
+  return totalPrizePool * (percentMap[type] / 100);
 }
 
 /**
