@@ -43,7 +43,8 @@ export default function AdminManageDrawPage() {
   const drawId = params.id as string
   const [showWinnerModal, setShowWinnerModal] = useState(false)
   const [winnerInfo, setWinnerInfo] = useState<Winner[] | null>(null)
-  const lastWinnersRef = useRef({ quadra: new Set<string>(), quina: new Set<string>(), cheia: new Set<string>() })
+  const [winnerQueue, setWinnerQueue] = useState<Winner[][]>([])
+  const announcedWinnersRef = useRef(new Set<string>())
   const winnerTypes = ["quadra", "quina", "cheia"] as const
   type WinnerType = typeof winnerTypes[number]
 
@@ -67,6 +68,12 @@ export default function AdminManageDrawPage() {
 
           setDraw(drawData)
           setDrawnNumbers(drawData.drawnNumbers || [])
+
+          // Verificar ganhadores existentes ao carregar
+          if (drawData.winnerDetails) {
+            console.log("[ADMIN INIT] Processando winnerDetails iniciais:", drawData.winnerDetails);
+            processWinnerDetails(drawData.winnerDetails);
+          }
 
           // Contar cartelas vendidas
           const cardsQuery = query(collection(db, "cards"), where("drawId", "==", drawId))
@@ -97,12 +104,63 @@ export default function AdminManageDrawPage() {
     }
   }, [user, drawId, router, toast])
 
-  // Listener em tempo real para winners
+  // Função para processar winnerDetails
+  const processWinnerDetails = (winnerDetails: any) => {
+    console.log("[ADMIN] Processando winnerDetails:", winnerDetails);
+    
+    const fases: ("quadra" | "quina" | "cheia")[] = ["quadra", "quina", "cheia"];
+    
+    for (const fase of fases) {
+      const faseWinners = winnerDetails[fase] || [];
+      console.log(`[ADMIN] Fase ${fase}: ${faseWinners.length} ganhadores`, faseWinners);
+      
+      for (const winner of faseWinners) {
+        const key = `${winner.cardId}-${winner.type || fase}`;
+        console.log(`[ADMIN] Verificando key: ${key}, já anunciado:`, announcedWinnersRef.current.has(key));
+        
+        if (!announcedWinnersRef.current.has(key)) {
+          console.log(`[ADMIN] Novo ganhador detectado: ${fase} - ${winner.cardId}`);
+          
+          // Marcar como anunciado ANTES de processar
+          announcedWinnersRef.current.add(key);
+          
+          // Criar objeto Winner
+          const winnerFormatted: Winner = {
+            userId: winner.userId || '',
+            userName: winner.userName || 'Usuário',
+            cardId: winner.cardId || '',
+            type: (winner.type || fase) as "quadra" | "quina" | "cheia",
+            prize: Number(winner.prize) || 0
+          };
+          
+          console.log(`[ADMIN] Winner formatado:`, winnerFormatted);
+          
+          // Adicionar à fila de modais
+          setWinnerQueue(prev => {
+            const newQueue = [...prev, [winnerFormatted]];
+            console.log("[ADMIN] Queue atualizada:", newQueue);
+            return newQueue;
+          });
+          
+          // Toast de confirmação
+          toast({
+            title: `🎉 ${fase.toUpperCase()} Ganha!`,
+            description: `${winner.userName} ganhou R$ ${Number(winner.prize || 0).toFixed(2)}!`,
+          });
+        }
+      }
+    }
+  };
+
+  // Listener em tempo real para winnerDetails
   useEffect(() => {
     if (!user) return;
 
+    console.log("[ADMIN] Configurando listener para draw:", drawId);
+
     const unsub = onSnapshot(doc(db, "draws", drawId), async (docSnapshot) => {
       if (!docSnapshot.exists()) return;
+      
       const updatedDraw = {
         id: docSnapshot.id,
         ...docSnapshot.data(),
@@ -110,48 +168,56 @@ export default function AdminManageDrawPage() {
         createdAt: docSnapshot.data().createdAt.toDate(),
       } as Draw;
 
+      console.log("[ADMIN] Snapshot recebido:", {
+        drawnNumbers: updatedDraw.drawnNumbers?.length,
+        winnerDetails: updatedDraw.winnerDetails
+      });
+
       setDraw(updatedDraw);
       setDrawnNumbers(updatedDraw.drawnNumbers || []);
 
-      // --- NOVO: lógica para winners ---
-      if (updatedDraw.winners) {
-        winnerTypes.forEach(async (type) => {
-          const current = new Set((updatedDraw.winners as Record<string, string[]>)[type] || []);
-          const last = lastWinnersRef.current[type];
-          const newCards = Array.from(current).filter((cardId) => !last.has(cardId));
-          if (newCards.length > 0) {
-            // Buscar dados dos usuários e cartelas
-            const winners = await Promise.all(
-              newCards.map(async (cardId: string) => {
-                const cardDoc = await getDoc(doc(db, "cards", cardId));
-                const cardData = cardDoc.data();
-                let userName = "Usuário";
-                let userId = "";
-                if (cardData) {
-                  userId = cardData.userId;
-                  const userDoc = await getDoc(doc(db, "users", userId));
-                  userName = userDoc.data()?.name || "Usuário";
-                }
-                return {
-                  userId,
-                  userName,
-                  cardId,
-                  type,
-                  prize: updatedDraw.type === "fixed"
-                    ? (updatedDraw.prizes as any)[type]
-                    : 100
-                };
-              })
-            );
-            setWinnerInfo(winners);
-            setShowWinnerModal(true);
-          }
-          lastWinnersRef.current[type] = new Set(current);
-        });
+      // Processar winnerDetails se existir
+      if (updatedDraw.winnerDetails) {
+        console.log("[ADMIN] winnerDetails detectado no snapshot");
+        processWinnerDetails(updatedDraw.winnerDetails);
       }
     });
-    return () => unsub();
-  }, [user, drawId]);
+    
+    return () => {
+      console.log("[ADMIN] Limpando listener");
+      unsub();
+    };
+  }, [user, drawId, toast]);
+
+  // useEffect para gerenciar a fila de modais
+  useEffect(() => {
+    console.log("[ADMIN] Verificando fila de modais:", {
+      queueLength: winnerQueue.length,
+      showModal: showWinnerModal
+    });
+
+    // Se há itens na fila e o modal não está sendo exibido
+    if (winnerQueue.length > 0 && !showWinnerModal) {
+      console.log("[ADMIN] Abrindo modal para:", winnerQueue[0]);
+      setWinnerInfo(winnerQueue[0]);
+      setShowWinnerModal(true);
+    }
+  }, [winnerQueue, showWinnerModal]);
+
+  // Função para fechar modal e processar próximo da fila
+  const handleModalClose = () => {
+    console.log("[ADMIN] Fechando modal, fila atual:", winnerQueue.length);
+    
+    setShowWinnerModal(false);
+    setWinnerInfo(null);
+    
+    // Remover o primeiro item da fila
+    setWinnerQueue(prev => {
+      const [first, ...rest] = prev;
+      console.log("[ADMIN] Removido da fila:", first, "restante:", rest.length);
+      return rest;
+    });
+  };
 
   const handleDrawNumber = async (number: number) => {
     if (drawnNumbers.includes(number)) {
@@ -165,6 +231,10 @@ export default function AdminManageDrawPage() {
 
     try {
       const newDrawnNumbers = [...drawnNumbers, number]
+      
+      console.log(`[ADMIN] Sorteando número ${number}, total: ${newDrawnNumbers.length}`);
+      
+      // APENAS atualizar drawnNumbers - o backend Node.js cuida dos ganhadores
       await updateDoc(doc(db, "draws", drawId), {
         drawnNumbers: newDrawnNumbers,
       })
@@ -176,7 +246,6 @@ export default function AdminManageDrawPage() {
         description: `O número ${number} foi sorteado com sucesso.`,
       })
 
-      await checkManualWinners(newDrawnNumbers)
     } catch (error) {
       console.error("Error drawing number:", error)
       toast({
@@ -242,108 +311,6 @@ export default function AdminManageDrawPage() {
       }
     }
   }
-
-  const checkManualWinners = async (currentDrawnNumbers: number[]) => {
-    // Buscar todas as cartelas do sorteio
-    const cardsQuery = query(collection(db, "cards"), where("drawId", "==", drawId));
-    const cardsSnapshot = await getDocs(cardsQuery);
-
-    // Buscar o sorteio atual para pegar ou inicializar winners
-    const drawDoc = await getDoc(doc(db, "draws", drawId));
-    const drawData = drawDoc.data();
-    const updatedWinners = { ...(drawData?.winners || {}) } as Record<Winner["type"], string[]>;
-    const previousWinners = { ...updatedWinners };
-
-    for (const cardDoc of cardsSnapshot.docs) {
-      const card = { id: cardDoc.id, ...cardDoc.data() } as Card;
-
-      // Função para checar tipo de vitória (quadra, quina, cheia)
-      const winnerType = checkCardWinnerUtil(card, currentDrawnNumbers);
-
-      if (winnerType) {
-        // Remover a cartela de todas as listas menores
-        if (winnerType === "cheia") {
-          updatedWinners["quadra"] = (updatedWinners["quadra"] || []).filter((id) => id !== card.id);
-          updatedWinners["quina"] = (updatedWinners["quina"] || []).filter((id) => id !== card.id);
-        } else if (winnerType === "quina") {
-          updatedWinners["quadra"] = (updatedWinners["quadra"] || []).filter((id) => id !== card.id);
-          // Se já estava em cheia, não adiciona em quina
-          if ((updatedWinners["cheia"] || []).includes(card.id)) continue;
-        } else if (winnerType === "quadra") {
-          // Se já estava em quina ou cheia, não adiciona em quadra
-          if ((updatedWinners["quina"] || []).includes(card.id)) continue;
-          if ((updatedWinners["cheia"] || []).includes(card.id)) continue;
-        }
-        if (!updatedWinners[winnerType]) {
-          updatedWinners[winnerType] = [];
-        }
-        // Adiciona apenas se não estiver já na lista
-        if (!updatedWinners[winnerType].includes(card.id)) {
-          updatedWinners[winnerType].push(card.id);
-        }
-      }
-    }
-
-    // Atualiza winners no Firestore
-    await updateDoc(doc(db, "draws", drawId), {
-      winners: updatedWinners,
-    });
-
-    // === CREDITAR SALDO DOS NOVOS VENCEDORES ===
-    await creditWinners(previousWinners, updatedWinners, drawData);
-  };
-
-  const creditWinners = async (
-    previousWinners: Record<Winner["type"], string[]>, 
-    updatedWinners: Record<Winner["type"], string[]>, 
-    drawData: any
-  ) => {
-    const winnerTypes: Winner["type"][] = ["quadra", "quina", "cheia"];
-    
-    for (const type of winnerTypes) {
-      const previousCards = new Set(previousWinners[type] || []);
-      const currentCards = new Set(updatedWinners[type] || []);
-      
-      // Encontrar novos vencedores
-      const newWinners = Array.from(currentCards).filter(cardId => !previousCards.has(cardId));
-      
-      for (const cardId of newWinners) {
-        try {
-          // Buscar dados da cartela
-          const cardDoc = await getDoc(doc(db, "cards", cardId));
-          if (!cardDoc.exists()) continue;
-          
-          const cardData = cardDoc.data();
-          const userId = cardData.userId;
-          
-          // Buscar dados do usuário
-          const userDoc = await getDoc(doc(db, "users", userId));
-          if (!userDoc.exists()) continue;
-          
-          const userData = userDoc.data();
-          const userName = userData.name || "Usuário";
-          
-          // Calcular prêmio
-          const prize = calculatePrize(type, drawData);
-          
-          if (prize > 0) {
-            const success = await creditUserPrize(userId, prize, type, cardId);
-            
-            if (success) {
-              toast({
-                title: "🎉 Prêmio Creditado!",
-                description: `${userName} ganhou R$ ${prize.toFixed(2)} na ${type}!`,
-              });
-            }
-          }
-        } catch (error) {
-          console.error(`Erro ao creditar prêmio para cartela ${cardId}:`, error);
-        }
-      }
-    }
-  };
-
-
 
   if (loading || loadingDraw) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>
@@ -532,7 +499,13 @@ export default function AdminManageDrawPage() {
           <Card>
             <CardHeader>
               <CardTitle>Painel de Números</CardTitle>
-              <CardDescription>Clique nos números para sorteá-los. Números em azul já foram sorteados.</CardDescription>
+              <CardDescription>
+                Clique nos números para sorteá-los. Números em azul já foram sorteados.
+                <br />
+                <span className="text-yellow-600 font-medium">
+                  ⚡ Os ganhadores são verificados automaticamente pelo sistema backend.
+                </span>
+              </CardDescription>
             </CardHeader>
             <CardContent>{renderNumberGrid()}</CardContent>
           </Card>
@@ -560,17 +533,54 @@ export default function AdminManageDrawPage() {
           </Card>
         )}
 
+        {/* Debug Info - Apenas em desenvolvimento */}
+        {process.env.NODE_ENV !== "production" && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="text-blue-800">🐛 Debug Info</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-blue-700 text-sm space-y-1">
+                <div>Winner Queue Length: {winnerQueue.length}</div>
+                <div>Show Modal: {showWinnerModal ? "Yes" : "No"}</div>
+                <div>Announced Winners: {announcedWinnersRef.current.size}</div>
+                <div>Current Winner: {winnerInfo ? winnerInfo[0]?.type : "None"}</div>
+                {draw.winnerDetails && (
+                  <div>
+                    WinnerDetails: {Object.entries(draw.winnerDetails).map(([fase, winners]) => 
+                      `${fase}:${Array.isArray(winners) ? winners.length : 0}`
+                    ).join(', ')}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Informação sobre backend */}
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-yellow-800">ℹ️ Sistema de Ganhadores</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-yellow-700 text-sm">
+              Os ganhadores são verificados automaticamente pelo sistema backend Node.js. 
+              Quando você sorteia um número, o sistema verifica todas as cartelas e registra 
+              automaticamente os ganhadores, creditando os prêmios e exibindo os modais.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Modal de Ganhador */}
         <WinnerModal
           open={showWinnerModal}
           winners={winnerInfo || []}
-          onOpenChange={setShowWinnerModal}
+          onOpenChange={(open) => {
+            if (!open) handleModalClose();
+          }}
           autoClose={true}
           autoCloseTime={15}
-          onTimerEnd={() => {
-            setShowWinnerModal(false);
-            setWinnerInfo(null);
-          }}
+          onTimerEnd={handleModalClose}
           isAdmin={true}
         />
       </div>

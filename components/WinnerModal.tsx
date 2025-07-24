@@ -39,21 +39,27 @@ export function WinnerModal({
     }
   }, [open, winners, autoCloseTime]);
 
-  // Timer countdown
+  // Timer countdown - CORRIGIDO
   useEffect(() => {
     if (!open || !autoClose) return;
-    if (winnerTimer <= 0) {
-      onTimerEnd?.();
-      onOpenChange(false);
-      return;
-    }
-
+    
     const interval = setInterval(() => {
-      setWinnerTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      setWinnerTimer((prev) => {
+        const newValue = prev - 1;
+        
+        // Se chegou a zero, fechar o modal
+        if (newValue <= 0) {
+          onTimerEnd?.();
+          onOpenChange(false);
+          return 0;
+        }
+        
+        return newValue;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [open, autoClose, winnerTimer, onOpenChange, onTimerEnd]);
+  }, [open, autoClose, onOpenChange, onTimerEnd]);
 
   // Função para formatar o ID da cartela (últimos 4 dígitos)
   const formatCardId = (cardId: string): string => {
@@ -108,22 +114,6 @@ export function WinnerModal({
               </div>
             </div>
           ))}
-
-          {/* Timer */}
-          {autoClose && (
-            <div className="text-center mt-4">
-              <div className="flex items-center justify-center gap-2 text-gray-600">
-                <Clock className="h-4 w-4" />
-                <span className="text-sm">Fechando em {winnerTimer} segundos</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-1000"
-                  style={{ width: `${(winnerTimer / autoCloseTime) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

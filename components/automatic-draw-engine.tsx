@@ -81,46 +81,44 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
             
             for (const fase of fases) {
               const faseWinners = winnerDetails[fase] || [];
-              log(`Processando fase ${fase} com ${faseWinners.length} ganhadores:`, faseWinners);
-              
-              for (const winner of faseWinners) {
+              // Filtra apenas os que ainda não foram anunciados
+              const novosGanhadores = faseWinners.filter(winner => {
                 const key = `${winner.cardId}-${winner.type || fase}`;
-                log(`Verificando key: ${key}, já anunciado:`, announcedWinnersRef.current.has(key));
-                
-                if (!announcedWinnersRef.current.has(key)) {
-                  // Garantir que o winner tenha todas as propriedades necessárias
-                  const winnerFormatted: Winner = {
+                return !announcedWinnersRef.current.has(key);
+              });
+
+              if (novosGanhadores.length > 0) {
+                // Marca todos como anunciados
+                novosGanhadores.forEach(winner => {
+                  const key = `${winner.cardId}-${winner.type || fase}`;
+                  announcedWinnersRef.current.add(key);
+                });
+
+                // Adiciona todos juntos em um único modal
+                setWinnerQueue(prev => [
+                  ...prev,
+                  novosGanhadores.map(winner => ({
                     userId: winner.userId || '',
                     userName: winner.userName || 'Usuário',
                     cardId: winner.cardId || '',
                     type: (winner.type || fase) as "quadra" | "quina" | "cheia",
                     prize: Number(winner.prize) || 0
-                  };
-                  
-                  log(`🎉 Novo ganhador encontrado para ${fase}:`, winnerFormatted);
-                  
-                  // Adicionar à fila imediatamente
-                  setWinnerQueue((prev) => {
-                    const newQueue = [...prev, [winnerFormatted]];
-                    log("Queue atualizada:", newQueue);
-                    return newQueue;
-                  });
-                  
-                  // Marcar como anunciado
-                  announcedWinnersRef.current.add(key);
-                  
-                  // Mostrar toast de confirmação
+                  }))
+                ]);
+
+                // Toast para cada ganhador
+                novosGanhadores.forEach(winner => {
                   toast({
                     title: `🎉 ${fase.toUpperCase()} Ganha!`,
-                    description: `${winnerFormatted.userName} ganhou R$ ${winnerFormatted.prize.toFixed(2)}!`,
+                    description: `${winner.userName} ganhou R$ ${Number(winner.prize).toFixed(2)}!`,
                   });
-                  
-                  // Forçar abertura do modal após um pequeno delay
-                  setTimeout(() => {
-                    setShowWinnerModal(true);
-                    log("Modal forçado a abrir para:", winnerFormatted);
-                  }, 100);
-                }
+                });
+
+                // Força abertura do modal
+                setTimeout(() => {
+                  setShowWinnerModal(true);
+                  log("Modal forçado a abrir para:", novosGanhadores);
+                }, 100);
               }
             }
           }
@@ -201,6 +199,7 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
       )}
 
       {/* Modal de ganhador */}
+      {/*
       <WinnerModal
         open={showWinnerModal && winnerQueue.length > 0}
         winners={winnerQueue[0] || []}
@@ -209,6 +208,7 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
         }}
         onTimerEnd={handleModalClose}
       />
+      */}
 
       {/* Debug Info - Remover em produção */}
       {process.env.NODE_ENV !== "production" && (

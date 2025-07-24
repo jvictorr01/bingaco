@@ -131,33 +131,52 @@ export default function DrawRoomPage() {
 
   // Adicionar um novo useEffect separado para o listener em tempo real
   useEffect(() => {
-    if (!user) return
-    const fases = ["quadra","quina","cheia"] as const
-  
+    if (!user) return;
+    
     const unsubscribe = onSnapshot(doc(db, "draws", drawId), snap => {
-      if (!snap.exists()) return
-      const d = snap.data() as Draw
-      setDraw({ ...d, dateTime: d.dateTime.toDate(), createdAt: d.createdAt.toDate() })
-      setDrawnNumbers(d.drawnNumbers || [])
-      setLastDrawnNumber((d.drawnNumbers||[]).slice(-1)[0] || null)
-  
-      // só isso:
+      if (!snap.exists()) return;
+      
+      const d = snap.data() as Draw;
+      setDraw({ ...d, dateTime: d.dateTime.toDate(), createdAt: d.createdAt.toDate() });
+      setDrawnNumbers(d.drawnNumbers || []);
+      setLastDrawnNumber((d.drawnNumbers || []).slice(-1)[0] || null);
+      
+      console.log("[SNAPSHOT] winnerDetails recebido:", d.winnerDetails);
+      
+      // VERIFICAÇÃO MELHORADA DE GANHADORES
       if (d.winnerDetails) {
-        outer: for (const fase of fases) {
-          for (const detail of d.winnerDetails[fase] || []) {
-            if (!lastWinnersRef.current[fase].has(detail.cardId)) {
-              lastWinnersRef.current[fase].add(detail.cardId)
-              setWinnerInfo([detail])
-              setShowWinnerModal(true)
-              break outer
+        const fases: ("quadra" | "quina" | "cheia")[] = ["quadra", "quina", "cheia"];
+        
+        // Procurar por novos ganhadores em TODAS as fases
+        for (const fase of fases) {
+          const ganhadores = d.winnerDetails[fase] || [];
+          
+          for (const ganhador of ganhadores) {
+            // Verificar se este ganhador já foi mostrado
+            if (!lastWinnersRef.current[fase].has(ganhador.cardId)) {
+              console.log(`[MODAL] Novo ganhador detectado - Fase: ${fase}, Cartela: ${ganhador.cardId}`);
+              
+              // Marcar como mostrado
+              lastWinnersRef.current[fase].add(ganhador.cardId);
+              
+              // Exibir modal
+              setWinnerInfo([ganhador]);
+              setShowWinnerModal(true);
+              
+              // Parar na primeira nova detecção para evitar múltiplos modais
+              return;
             }
           }
         }
       }
-    })
+    });
   
-    return () => unsubscribe()
-  }, [user, drawId])
+    return () => unsubscribe();
+  }, [user, drawId]);
+
+  useEffect(() => {
+    lastWinnersRef.current = { quadra: new Set(), quina: new Set(), cheia: new Set() };
+  }, [drawId]);
 
   // Timer para contagem regressiva
   useEffect(() => {
@@ -202,71 +221,23 @@ export default function DrawRoomPage() {
   }
 
   const getCardStatus = (card: BingoCard): string => {
-    // Lógica igual ao checkCardWinner
-    // Verificar se a cartela está cheia (todos os números marcados)
-    let totalMarked = 0;
-    card.numbers.forEach((number, index) => {
-      const row = Math.floor(index / 5);
-      const col = index % 5;
-      const isFree = col === 2 && row === 2;
-      if (isFree || isNumberMarked(number)) {
-        totalMarked++;
-      }
-    });
-    if (totalMarked === 25) return "CARTELA CHEIA!";
-
-    // Verificar linhas para quina ou quadra
-    let foundQuina = false;
-    let foundQuadra = false;
-    for (let row = 0; row < 5; row++) {
-      let markedInRow = 0;
-      for (let col = 0; col < 5; col++) {
-        const index = row * 5 + col;
-        const number = card.numbers[index];
-        const isFree = col === 2 && row === 2;
-        if (isFree || isNumberMarked(number)) {
-          markedInRow++;
-        }
-      }
-      if (markedInRow === 5) foundQuina = true;
-      else if (markedInRow === 4) foundQuadra = true;
-    }
-    if (foundQuina) return "QUINA!";
-    if (foundQuadra) return "QUADRA!";
+    // ORDEM CORRETA: Verificar cheia primeiro, depois quina, depois quadra
+    if (temCheia(card)) return "CARTELA CHEIA!";
+    if (temQuina(card)) return "QUINA!";
+    if (temQuadra(card)) return "QUADRA!";
+    
+    // Contar total de marcados para status padrão
+    const totalMarked = getMarkedCount(card);
     return `${totalMarked}/25 marcados`;
-  }
+  };
 
-  const getCardStatusColor = (card: BingoCard): string => {
-    // Lógica igual ao getCardStatus
-    let totalMarked = 0;
-    card.numbers.forEach((number, index) => {
-      const row = Math.floor(index / 5);
-      const col = index % 5;
-      const isFree = col === 2 && row === 2;
-      if (isFree || isNumberMarked(number)) {
-        totalMarked++;
-      }
-    });
-    if (totalMarked === 25) return "text-green-600 font-bold";
-    let foundQuina = false;
-    let foundQuadra = false;
-    for (let row = 0; row < 5; row++) {
-      let markedInRow = 0;
-      for (let col = 0; col < 5; col++) {
-        const index = row * 5 + col;
-        const number = card.numbers[index];
-        const isFree = col === 2 && row === 2;
-        if (isFree || isNumberMarked(number)) {
-          markedInRow++;
-        }
-      }
-      if (markedInRow === 5) foundQuina = true;
-      else if (markedInRow === 4) foundQuadra = true;
-    }
-    if (foundQuina) return "text-blue-600 font-bold";
-    if (foundQuadra) return "text-yellow-600 font-bold";
-    return "text-gray-600";
-  }
+  // FUNÇÃO getCardStatusColor CORRIGIDA
+const getCardStatusColor = (card: BingoCard): string => {
+  if (temCheia(card)) return "text-green-600 font-bold";
+  if (temQuina(card)) return "text-blue-600 font-bold";
+  if (temQuadra(card)) return "text-yellow-600 font-bold";
+  return "text-gray-600";
+};
 
   // Função para formatar o ID da cartela (últimos 4 dígitos)
   const formatCardId = (cardId: string): string => {
@@ -286,12 +257,12 @@ export default function DrawRoomPage() {
           markedInRow++;
         }
       }
+      // EXATAMENTE 4 marcações (não mais que isso)
       if (markedInRow === 4) return true;
     }
     return false;
   };
-
-  // 2. Verificar se uma cartela fez quina
+  
   const temQuina = (card: BingoCard): boolean => {
     for (let row = 0; row < 5; row++) {
       let markedInRow = 0;
@@ -303,12 +274,12 @@ export default function DrawRoomPage() {
           markedInRow++;
         }
       }
+      // EXATAMENTE 5 marcações
       if (markedInRow === 5) return true;
     }
     return false;
   };
-
-  // 3. Verificar se uma cartela está cheia
+  
   const temCheia = (card: BingoCard): boolean => {
     let totalMarked = 0;
     card.numbers.forEach((number, index) => {
@@ -323,36 +294,76 @@ export default function DrawRoomPage() {
   };
 
   // Função de depuração para ajudar a diagnosticar problemas
-  const logDebugInfo = () => {
-    if (!draw || !draw.winners) return;
+  // LOG DEBUG MELHORADO
+const logDebugInfo = () => {
+  if (!draw || !draw.winners) return;
+  
+  const winners = draw.winners as Record<string, string[]>;
+  console.group("=== DEBUG: Estado do Sorteio ===");
+  console.log(`Fase atual: ${draw.currentPhase}`);
+  console.log(`Status: ${draw.status}`);
+  console.log(`Números sorteados: ${drawnNumbers.length}/90`);
+  console.log(`Últimos números: [${drawnNumbers.slice(-5).join(', ')}]`);
+  
+  // Log dos ganhadores
+  console.log(`Ganhadores quadra: ${(winners.quadra || []).length}`, winners.quadra || []);
+  console.log(`Ganhadores quina: ${(winners.quina || []).length}`, winners.quina || []);
+  console.log(`Ganhadores cheia: ${(winners.cheia || []).length}`, winners.cheia || []);
+  
+  // Log do winnerDetails se existir
+  if (draw.winnerDetails) {
+    console.log("winnerDetails:", draw.winnerDetails);
+  }
+  
+  // Verificar estado das cartelas do usuário
+  const cartelasInfo = userCards.map(card => {
+    const hasQuadra = temQuadra(card);
+    const hasQuina = temQuina(card);
+    const hasCheia = temCheia(card);
+    const marked = getMarkedCount(card);
     
-    const winners = draw.winners as Record<string, string[]>;
-    console.group("=== DEBUG: Estado do Sorteio ===");
-    console.log(`Fase atual: ${draw.currentPhase}`);
-    console.log(`Números sorteados: ${drawnNumbers.length}/90`);
-    console.log(`Ganhadores quadra: ${(winners.quadra || []).length}`, winners.quadra || []);
-    console.log(`Ganhadores quina: ${(winners.quina || []).length}`, winners.quina || []);
-    console.log(`Ganhadores cheia: ${(winners.cheia || []).length}`, winners.cheia || []);
-    
-    // Verificar estado das cartelas do usuário
-    const cartelasInfo = userCards.map(card => {
-      const hasQuadra = temQuadra(card);
-      const hasQuina = temQuina(card);
-      const hasCheia = temCheia(card);
-      const marked = getMarkedCount(card);
-      return {
-        id: formatCardId(card.id),
-        marked: `${marked}/25`,
-        quadra: hasQuadra ? "SIM" : "NÃO",
-        quina: hasQuina ? "SIM" : "NÃO",
-        cheia: hasCheia ? "SIM" : "NÃO",
-        status: getCardStatus(card)
-      };
-    });
-    
-    console.table(cartelasInfo);
+    return {
+      id: formatCardId(card.id),
+      marked: `${marked}/25`,
+      quadra: hasQuadra ? "SIM" : "NÃO",
+      quina: hasQuina ? "SIM" : "NÃO", 
+      cheia: hasCheia ? "SIM" : "NÃO",
+      status: getCardStatus(card)
+    };
+  });
+  
+  console.table(cartelasInfo);
+  
+  // Log dos números de cada linha das cartelas
+  userCards.forEach((card, cardIndex) => {
+    console.group(`Cartela ${formatCardId(card.id)}:`);
+    for (let row = 0; row < 5; row++) {
+      const numeros = [];
+      const marcados = [];
+      let contMarcados = 0;
+      
+      for (let col = 0; col < 5; col++) {
+        const index = row * 5 + col;
+        const numero = card.numbers[index];
+        const isFree = col === 2 && row === 2;
+        const isMarked = isFree || drawnNumbers.includes(numero);
+        
+        if (isMarked) contMarcados++;
+        numeros.push(isFree ? 'FREE' : numero);
+        marcados.push(isMarked ? '✓' : '✗');
+      }
+      
+      let status = '';
+      if (contMarcados === 4) status = ' 🟡 QUADRA';
+      else if (contMarcados === 5) status = ' 🟢 QUINA';
+      
+      console.log(`Linha ${row + 1}: [${numeros.join(', ')}] -> [${marcados.join(' ')}] = ${contMarcados}/5${status}`);
+    }
     console.groupEnd();
-  };
+  });
+  
+  console.groupEnd();
+};
 
   const renderBingoCard = (card: BingoCard, index: number) => {
     return (
