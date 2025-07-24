@@ -69,90 +69,91 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#000732' }}>
-      <Card className="w-full max-w-md">
+      <div className="w-full max-w-md flex flex-col items-center">
         <img
           src="https://bingodopovo.com/assets/images/arte3.png"
           alt="Banner do Bingo Registro"
-          className="mx-auto mb-6 w-full h-auto rounded"
-          style={{ maxHeight: 220 }}
+          className="w-full h-48 object-cover rounded-t-md"
         />
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Registrar</CardTitle>
-          <CardDescription>Crie sua conta para jogar Bingo</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome Completo</Label>
-              <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={passwordVisible ? "text" : "password"}
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setPasswordVisible((v) => !v)}
-                  className="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                  tabIndex={0}
-                  aria-label={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {passwordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+        <Card className="w-full rounded-b-md !rounded-t-none">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Registrar</CardTitle>
+            <CardDescription>Crie sua conta para jogar Bingo</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome Completo</Label>
+                <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={passwordVisible ? "text" : "password"}
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setPasswordVisible((v) => !v)}
-                  className="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                  tabIndex={0}
-                  aria-label={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {passwordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefone</Label>
+                <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={passwordVisible ? "text" : "password"}
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPasswordVisible((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    tabIndex={0}
+                    aria-label={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {passwordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={passwordVisible ? "text" : "password"}
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPasswordVisible((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    tabIndex={0}
+                    aria-label={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {passwordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              {error && <div className="text-sm text-red-600 text-center">{error}</div>}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Criando conta..." : "Registrar"}
+              </Button>
+            </form>
+            <div className="mt-4 text-center text-sm">
+              Já tem uma conta?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Entre aqui
+              </Link>
             </div>
-            {error && <div className="text-sm text-red-600 text-center">{error}</div>}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Criando conta..." : "Registrar"}
-            </Button>
-          </form>
-          <div className="mt-4 text-center text-sm">
-            Já tem uma conta?{" "}
-            <Link href="/login" className="text-primary hover:underline">
-              Entre aqui
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
