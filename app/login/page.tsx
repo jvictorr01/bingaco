@@ -56,7 +56,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#000732' }}>
       <div className="w-full max-w-md flex flex-col items-center">
         <img
-          src="https://bingodopovo.com/assets/images/arte4.png"
+          src="https://i.imgur.com/1odU7L2.png"
           alt="Banner do Bingo"
           className="w-full h-48 object-cover rounded-t-md -mt-8 z-10 relative"
           style={{ marginBottom: '-2rem' }}
