@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebase"
 import { useAuth } from "@/hooks/use-auth"
 import { useEffect } from "react"
 import { Eye, EyeOff } from "lucide-react"
+import { sendPasswordResetEmail } from "firebase/auth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -24,6 +25,11 @@ export default function LoginPage() {
   const router = useRouter()
   const { user } = useAuth()
   const [passwordVisible, setPasswordVisible] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetMessage, setResetMessage] = useState("")
+  const [resetError, setResetError] = useState("")
 
   useEffect(() => {
     if (user) {
@@ -52,8 +58,62 @@ export default function LoginPage() {
     }
   }
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetLoading(true)
+    setResetMessage("")
+    setResetError("")
+    try {
+      await sendPasswordResetEmail(auth, resetEmail)
+      setResetMessage("E-mail de redefinição enviado! Verifique sua caixa de entrada.")
+      setResetEmail("")
+    } catch (error: any) {
+      setResetError("Não foi possível enviar o e-mail. Verifique o endereço informado.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#000732' }}>
+      {/* Modal de redefinição de senha */}
+      {showResetPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-md shadow-lg w-full max-w-sm p-6 relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              onClick={() => {
+                setShowResetPassword(false)
+                setResetMessage("")
+                setResetError("")
+                setResetEmail("")
+              }}
+              aria-label="Fechar"
+            >
+              ×
+            </button>
+            <h2 className="text-lg font-semibold mb-2 text-center">Redefinir senha</h2>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">E-mail</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={resetEmail}
+                  onChange={e => setResetEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              {resetMessage && <div className="text-green-600 text-sm text-center">{resetMessage}</div>}
+              {resetError && <div className="text-red-600 text-sm text-center">{resetError}</div>}
+              <Button type="submit" className="w-full" disabled={resetLoading}>
+                {resetLoading ? "Enviando..." : "Enviar e-mail de redefinição"}
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="w-full max-w-md flex flex-col items-center">
         <img
           src="https://i.imgur.com/1odU7L2.png"
@@ -104,6 +164,15 @@ export default function LoginPage() {
               <Link href="/registro" className="text-primary hover:underline">
                 Registre-se
               </Link>
+            </div>
+            <div className="mt-2 text-center text-sm">
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => setShowResetPassword(true)}
+              >
+                Esqueceu a senha?
+              </button>
             </div>
           </CardContent>
         </Card>
