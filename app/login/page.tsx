@@ -118,10 +118,10 @@ export default function LoginPage() {
         <img
           src="https://i.imgur.com/1odU7L2.png"
           alt="Banner do Bingo"
-          className="w-full h-48 object-cover rounded-t-md -mt-8 z-10 relative"
+          className="w-full h-52 sm:h-64 object-contain rounded-t-md -mt-8 z-10 relative"
           style={{ marginBottom: '-2rem' }}
         />
-        <Card className="w-full mt-8 relative z-0 rounded-b-md !rounded-t-none">
+        <Card className="w-full relative z-0 rounded-b-md !rounded-t-none">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Entrar</CardTitle>
             <CardDescription>Entre com sua conta para acessar o Bingo</CardDescription>

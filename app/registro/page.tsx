@@ -98,7 +98,8 @@ export default function RegisterPage() {
         <img
           src="https://i.imgur.com/J5dfutP.png"
           alt="Banner do Bingo Registro"
-          className="w-full h-48 object-cover rounded-t-md"
+          className="w-full h-52 sm:h-64 object-contain rounded-t-md -mt-8 z-10 relative"
+          style={{ marginBottom: '-2rem' }}
         />
         <Card className="w-full rounded-b-md !rounded-t-none">
           <CardHeader className="text-center">
