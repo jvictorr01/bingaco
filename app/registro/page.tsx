@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createUserWithEmailAndPassword } from "firebase/auth"
-import { doc, setDoc } from "firebase/firestore"
+import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,12 +26,27 @@ export default function RegisterPage() {
   const [error, setError] = useState("")
   const router = useRouter()
   const [passwordVisible, setPasswordVisible] = useState(false)
+  const phoneInputRef = useRef<HTMLInputElement>(null)
+
+  // Função para formatar o telefone
+  const formatPhone = (value: string) => {
+    // Remove tudo que não for número
+    const digits = value.replace(/\D/g, "").slice(0, 11)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }))
+  }
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value)
+    setFormData((prev) => ({ ...prev, phone: formatted }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +56,12 @@ export default function RegisterPage() {
 
     if (formData.password !== formData.confirmPassword) {
       setError("As senhas não coincidem")
+      setLoading(false)
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError("A senha deve ter no mínimo 6 caracteres")
       setLoading(false)
       return
     }
@@ -61,7 +82,11 @@ export default function RegisterPage() {
 
       router.push("/home")
     } catch (error: any) {
-      setError("Erro ao criar conta. Tente novamente.")
+      if (error.code === "auth/email-already-in-use") {
+        setError("Este email já está cadastrado na plataforma.")
+      } else {
+        setError("Erro ao criar conta. Tente novamente.")
+      }
     } finally {
       setLoading(false)
     }
@@ -92,7 +117,17 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
+                <Input
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handlePhoneChange}
+                  required
+                  maxLength={15} // (xx) xxxxx-xxxx tem 15 caracteres
+                  ref={phoneInputRef}
+                  pattern="\(\d{2}\) \d{5}-\d{4}"
+                  title="Formato: (99) 99999-9999"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
