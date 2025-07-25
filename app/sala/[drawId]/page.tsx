@@ -15,6 +15,7 @@ import { Clock, Trophy, Users, ArrowLeft, History } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { WinnerModal } from "@/components/WinnerModal"
+import { calculateAccumulatedPrize } from "@/lib/prize-utils"
 
 interface Winner {
   userId: string;
@@ -41,6 +42,7 @@ export default function DrawRoomPage() {
   const lastWinnersRef = useRef({ quadra: new Set<string>(), quina: new Set<string>(), cheia: new Set<string>() })
   // Ref para guardar IDs de ganhadores já exibidos
   // const shownWinnersRef = useRef<{ [key: string]: string }>({ quadra: '', quina: '', cheia: '' });
+  const [stats, setStats] = useState<{ totalPlayers: number, totalCards: number }>({ totalPlayers: 0, totalCards: 0 })
 
   useEffect(() => {
     if (!loading && !user) {
@@ -608,7 +610,7 @@ const logDebugInfo = () => {
   return (
     <UserLayout>
       {/* Engine de Sorteio Automático */}
-      <AutomaticDrawEngine drawId={drawId} isActive={draw.status === "active"} />
+      <AutomaticDrawEngine drawId={drawId} isActive={draw.status === "active"} onStatsUpdate={setStats} />
 
       <div className="space-y-6">
         {/* Header */}
@@ -716,47 +718,59 @@ const logDebugInfo = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Prêmios
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {draw.type === "fixed" ? (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span>Quadra:</span>
-                    <span>R$ {(draw.prizes as any).quadra.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Quina:</span>
-                    <span>R$ {(draw.prizes as any).quina.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Cartela Cheia:</span>
-                    <span>R$ {(draw.prizes as any).cheia.toFixed(2)}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span>Quadra:</span>
-                    <span>{(draw.prizes as any).quadraPercent}%</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Quina:</span>
-                    <span>{(draw.prizes as any).quinaPercent}%</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Cartela Cheia:</span>
-                    <span>{(draw.prizes as any).cheiaPercent}%</span>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {/* Card de Prêmios */}
+          {draw && (
+            <Card className="mt-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5" />
+                  Prêmios
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {draw.type === "fixed" ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span>Quadra:</span>
+                      <span>R$ {(draw.prizes as any).quadra.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Quina:</span>
+                      <span>R$ {(draw.prizes as any).quina.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Cartela Cheia:</span>
+                      <span>R$ {(draw.prizes as any).cheia.toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span>Quadra:</span>
+                      <span>R$ {calculateAccumulatedPrize("quadra", draw).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Quina:</span>
+                      <span>R$ {calculateAccumulatedPrize("quina", draw).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Cartela Cheia:</span>
+                      <span>R$ {calculateAccumulatedPrize("cheia", draw).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                {/* Jogadores e cartelas participantes */}
+                <div className="mt-10 text-center">
+                  <span className="text-sm text-zinc-600 font-medium">Jogadores: </span>
+                  <span className="text-base font-bold text-zinc-800">{stats.totalPlayers}</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-sm text-zinc-600 font-medium">Cartelas participantes: </span>
+                  <span className="text-base font-bold text-zinc-800">{stats.totalCards}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

@@ -140,6 +140,7 @@ export default function RegisterPage() {
                     onChange={handleChange}
                     required
                     className="pr-10"
+                    placeholder="Mínimo 6 caracteres"
                   />
                   <button
                     type="button"
@@ -163,6 +164,7 @@ export default function RegisterPage() {
                     onChange={handleChange}
                     required
                     className="pr-10"
+                    placeholder="Mínimo 6 caracteres"
                   />
                   <button
                     type="button"

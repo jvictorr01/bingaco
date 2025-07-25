@@ -21,6 +21,7 @@ import { db } from "@/lib/firebase"
 import type { Draw, Purchase } from "@/lib/types"
 import { Clock, Trophy, Users, ShoppingCart } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { calculatePrize } from "@/lib/prize-utils"
 
 export default function HomePage() {
   const { user, loading } = useAuth()
@@ -128,6 +129,12 @@ export default function HomePage() {
       await updateDoc(doc(db, "users", user.id), {
         balance: user.balance - totalAmount,
       })
+
+      // Atualizar total de cartelas vendidas no sorteio (incrementar totalCards)
+      const drawRef = doc(db, "draws", selectedDraw.id);
+      await updateDoc(drawRef, {
+        totalCards: ((selectedDraw as any).totalCards || 0) + selectedQuantity,
+      });
 
       // Atualizar estado local
       setUserPurchases((prev) => [
@@ -277,7 +284,10 @@ export default function HomePage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {draws.map((draw) => (
-                <Card key={draw.id} className="hover:shadow-lg transition-shadow">
+                <Card
+                  key={draw.id}
+                  className="hover:shadow-lg transition-shadow bg-gradient-to-r from-blue-500 to-purple-600 text-white"
+                >
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{draw.name}</CardTitle>
@@ -286,7 +296,7 @@ export default function HomePage() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      <div className="flex items-center gap-2 text-sm">
+                      <div className="flex items-center gap-2 text-sm text-white">
                         <Clock className="h-4 w-4" />
                         {formatDateTime(draw.dateTime)}
                       </div>
@@ -306,6 +316,41 @@ export default function HomePage() {
                         <span>Modo:</span>
                         <span className="font-medium">{draw.mode === "automatic" ? "Automático" : "Manual"}</span>
                       </div>
+                      {/* Prêmios */}
+                      <div className="bg-white/10 rounded p-2 mt-2">
+                        <div className="font-semibold mb-1 text-white">Prêmios</div>
+                        {draw.type === "fixed" ? (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span>Quadra:</span>
+                              <span>R$ {(draw.prizes as any).quadra.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Quina:</span>
+                              <span>R$ {(draw.prizes as any).quina.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Cheia:</span>
+                              <span>R$ {(draw.prizes as any).cheia.toFixed(2)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span>Quadra:</span>
+                              <span>R$ {calculatePrize("quadra", draw).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Quina:</span>
+                              <span>R$ {calculatePrize("quina", draw).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Cheia:</span>
+                              <span>R$ {calculatePrize("cheia", draw).toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                       {draw.status === "waiting" && (
                         <div className="text-center py-2 bg-yellow-50 rounded text-yellow-700 text-sm">
                           Inicia em: {getTimeUntilDraw(draw.dateTime)}
@@ -313,12 +358,18 @@ export default function HomePage() {
                       )}
 
                       {hasPurchasedCards(draw.id) ? (
-                        <Button className="w-full" onClick={() => router.push(`/sala/${draw.id}`)}>
+                        <Button
+                          className="w-full bg-yellow-400 hover:bg-yellow-500 text-black border-none"
+                          onClick={() => router.push(`/sala/${draw.id}`)}
+                        >
                           <Users className="h-4 w-4 mr-2" />
                           Entrar na Sala
                         </Button>
                       ) : (
-                        <Button className="w-full" onClick={() => handleBuyCards(draw)}>
+                        <Button
+                          className="w-full bg-green-600 hover:bg-green-700 text-white border-none"
+                          onClick={() => handleBuyCards(draw)}
+                        >
                           <ShoppingCart className="h-4 w-4 mr-2" />
                           Comprar Cartelas
                         </Button>
@@ -347,6 +398,15 @@ export default function HomePage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Quantidade de cartelas:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={selectedQuantity}
+                    onChange={e => setSelectedQuantity(Math.max(1, Math.min(1000, Number(e.target.value))))}
+                    className="w-full mb-2 rounded border px-2 py-1 text-black"
+                    placeholder="Digite a quantidade desejada"
+                  />
                   <div className="grid grid-cols-5 gap-2">
                     {quantityOptions.map((qty) => (
                       <Button

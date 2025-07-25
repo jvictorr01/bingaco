@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { doc, onSnapshot } from "firebase/firestore"
+import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { Draw, Card as BingoCard } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -9,11 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Clock } from "lucide-react"
 import { creditUserPrize, calculatePrize } from "@/lib/prize-utils"
+import { calculateAccumulatedPrize } from "@/lib/prize-utils"
 import { WinnerModal } from "@/components/WinnerModal"
 
 interface AutomaticDrawEngineProps {
   drawId: string
   isActive: boolean
+  onStatsUpdate?: (stats: { totalPlayers: number, totalCards: number }) => void
 }
 
 interface Winner {
@@ -24,24 +26,19 @@ interface Winner {
   prize: number
 }
 
-interface DrawWithWinnerDetails extends Draw {
-  winnerDetails?: {
-    [key in "quadra" | "quina" | "cheia"]?: Array<{
-      userId: string
-      userName: string
-      cardId: string
-      prize: number
-      type: string
-    }>
-  }
+type DrawWithWinnerDetails = Draw & {
+  winnerDetails?: Record<"quadra" | "quina" | "cheia", any[]>
+  totalCards?: number
 }
 
-export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEngineProps) {
+export function AutomaticDrawEngine({ drawId, isActive, onStatsUpdate }: AutomaticDrawEngineProps) {
   const [draw, setDraw] = useState<DrawWithWinnerDetails | null>(null)
   const [winners, setWinners] = useState<Winner[]>([])
   const [winnerQueue, setWinnerQueue] = useState<Winner[][]>([]);
   const [showWinnerModal, setShowWinnerModal] = useState(false);
   const [currentWinners, setCurrentWinners] = useState<Winner[]>([])
+  const [totalPlayers, setTotalPlayers] = useState<number>(0)
+  const [totalCards, setTotalCards] = useState<number>(0)
   const { toast } = useToast()
   const announcedWinnersRef = useRef(new Set<string>())
   const drawRefState = useRef<Draw | null>(null)
@@ -52,6 +49,27 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
       console.log("[AutomaticDrawEngine]", ...args);
     }
   };
+
+  // Buscar jogadores e cartelas ao montar
+  useEffect(() => {
+    const fetchCards = async () => {
+      const cardsQuery = query(collection(db, "cards"), where("drawId", "==", drawId));
+      const cardsSnapshot = await getDocs(cardsQuery);
+      const totalCardsValue = cardsSnapshot.size;
+      const userIds = new Set<string>();
+      cardsSnapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.userId) userIds.add(data.userId);
+      });
+      const totalPlayersValue = userIds.size;
+      setTotalCards(totalCardsValue);
+      setTotalPlayers(totalPlayersValue);
+      if (onStatsUpdate) {
+        onStatsUpdate({ totalPlayers: totalPlayersValue, totalCards: totalCardsValue });
+      }
+    };
+    fetchCards();
+  }, [drawId, onStatsUpdate]);
 
   // useEffect para escutar mudanças no sorteio
   useEffect(() => {
@@ -74,7 +92,7 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
 
           // Processar winnerDetails vindos do backend
           if (drawData.winnerDetails) {
-            const winnerDetails = drawData.winnerDetails;
+            const winnerDetails = drawData.winnerDetails as Record<"quadra" | "quina" | "cheia", any[]>;
             log("winnerDetails completo recebido:", winnerDetails);
             
             const fases: ("quadra" | "quina" | "cheia")[] = ["quadra", "quina", "cheia"];
@@ -108,9 +126,13 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
 
                 // Toast para cada ganhador
                 novosGanhadores.forEach(winner => {
+                  let valorPremio = winner.prize;
+                  if (drawData.type === "accumulated") {
+                    valorPremio = calculateAccumulatedPrize((winner.type || fase) as "quadra" | "quina" | "cheia", drawData);
+                  }
                   toast({
                     title: `🎉 ${fase.toUpperCase()} Ganha!`,
-                    description: `${winner.userName} ganhou R$ ${Number(winner.prize).toFixed(2)}!`,
+                    description: `${winner.userName} ganhou R$ ${valorPremio.toFixed(2)}!`,
                   });
                 });
 
@@ -184,21 +206,29 @@ export function AutomaticDrawEngine({ drawId, isActive }: AutomaticDrawEnginePro
     return null
   }
 
+  // Remover a função renderPremios e sua chamada do JSX
+
   return (
     <>
       {/* Indicador de Status do Sorteio */}
       {draw?.status === "active" && (
         <div className="fixed top-4 left-4 z-50">
           <div className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium">Sorteio Automático Ativo</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium">Sorteio Automático Ativo</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-medium">Jogadores:</span>
+                <span className="text-sm font-bold">{draw.totalCards ?? 0}</span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de ganhador */}
+      {/* Prêmios e jogadores */}
       {/*
       <WinnerModal
         open={showWinnerModal && winnerQueue.length > 0}
